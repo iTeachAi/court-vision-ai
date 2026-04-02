@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import HeroSection from "@/components/HeroSection";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDashboard from "@/components/AnalysisDashboard";
-import type { AnalysisResult } from "@/components/UploadZone";
+import { analyzeVideo, type AnalysisResult } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 type AppView = "hero" | "upload" | "dashboard";
 
@@ -10,17 +11,34 @@ const Index = () => {
   const [view, setView] = useState<AppView>("hero");
   const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleAnalysisComplete = (data: AnalysisResult, url: string) => {
-    setAnalysisData(data);
-    setVideoUrl(url);
-    setView("dashboard");
-  };
+  const handleFileSelected = useCallback(async (file: File) => {
+    setLoading(true);
+    setVideoUrl(URL.createObjectURL(file));
+
+    try {
+      const result = await analyzeVideo(file);
+      setAnalysisData(result);
+      setView("dashboard");
+    } catch (error) {
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Could not reach the analysis server. Make sure the backend is running.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   return (
     <main className="min-h-screen bg-background">
       {view === "hero" && <HeroSection onGetStarted={() => setView("upload")} />}
-      {view === "upload" && <UploadZone onAnalysisComplete={handleAnalysisComplete} />}
+      {view === "upload" && (
+        <UploadZone onFileSelected={handleFileSelected} loading={loading} />
+      )}
       {view === "dashboard" && analysisData && (
         <AnalysisDashboard data={analysisData} videoUrl={videoUrl} />
       )}
