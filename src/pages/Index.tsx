@@ -16,11 +16,11 @@ const Index = () => {
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
-    setVideoUrl(URL.createObjectURL(file));
 
     try {
       const result = await analyzeVideo(file);
       setAnalysisData(result);
+      setVideoUrl(getVideoUrl(result.video_url));
       setView("dashboard");
     } catch (error) {
       toast({
