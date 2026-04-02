@@ -3,10 +3,9 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-import os
 import cv2
-import math
 import shutil
+import math
 
 app = FastAPI(title="Basketball AI Coach")
 
@@ -49,7 +48,7 @@ def health():
 
 
 # -----------------------------
-# HELPER FUNCTIONS
+# HELPERS
 # -----------------------------
 def get_ball_position(results):
     best_ball = None
@@ -116,8 +115,15 @@ def run_analysis(video_path, model):
 
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    # ✅ TRY BROWSER FRIENDLY CODEC
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    # 🔥 fallback if codec fails
+    if not out.isOpened():
+        output_path = output_path.replace(".mp4", ".avi")
+        fourcc = cv2.VideoWriter_fourcc(*"XVID")
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     ball_positions = []
     timeline = []
@@ -125,42 +131,57 @@ def run_analysis(video_path, model):
     frame_count = 0
     last_event = None
 
+    # 🔥 PERFORMANCE BOOST
+    STEP_SECONDS = 0.5
+    step = max(1, int(fps * STEP_SECONDS))
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        results = model(frame, conf=0.05, imgsz=1280)
+        if frame_count % step == 0:
 
-        # --- BALL ---
-        pos = get_ball_position(results)
+            results = model(frame, conf=0.01, imgsz=1280, verbose=False)
 
-        if pos:
-            ball_positions.append(pos)
-        elif ball_positions:
-            ball_positions.append(ball_positions[-1])
+            # --- BALL ---
+            pos = get_ball_position(results)
 
-        smoothed = smooth_positions(ball_positions)
+            if pos:
+                ball_positions.append(pos)
+            elif ball_positions:
+                ball_positions.append(ball_positions[-1])
 
-        # --- EVENT ---
-        event = classify_event(ball_positions)
-        feedback = generate_feedback(event)
+            smoothed = smooth_positions(ball_positions)
 
-        if event and event != last_event:
-            timeline.append({
-                "time": round(frame_count / fps, 2),
-                "event": event,
-                "feedback": feedback
-            })
-            last_event = event
+            # --- EVENT ---
+            event = classify_event(ball_positions)
+            feedback = generate_feedback(event)
 
-        # --- DRAW ---
-        annotated = results[0].plot()
+            if event and event != last_event:
+                timeline.append({
+                    "time": round(frame_count / fps, 2),
+                    "event": event,
+                    "feedback": feedback
+                })
+                last_event = event
 
-        if smoothed:
-            cv2.circle(annotated, (int(smoothed[0]), int(smoothed[1])), 8, (0, 255, 0), -1)
+            # --- DRAW ---
+            annotated = results[0].plot()
 
-        out.write(annotated)
+            if smoothed:
+                cv2.circle(
+                    annotated,
+                    (int(smoothed[0]), int(smoothed[1])),
+                    8,
+                    (0, 255, 0),
+                    -1
+                )
+
+            # ⚠️ FIX COLOR FOR VIDEO ENCODING
+            annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+
+            out.write(annotated)
 
         frame_count += 1
 
@@ -175,7 +196,7 @@ def run_analysis(video_path, model):
 
 
 # -----------------------------
-# ANALYZE ENDPOINT
+# ANALYZE
 # -----------------------------
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -191,11 +212,17 @@ async def analyze(file: UploadFile = File(...)):
 
 
 # -----------------------------
-# VIDEO SERVING
+# VIDEO SERVE
 # -----------------------------
 @app.get("/video/{filename}")
 def get_video(filename: str):
-    return FileResponse(str(TEMP_DIR / filename), media_type="video/mp4")
+
+    file_path = TEMP_DIR / filename
+
+    if filename.endswith(".avi"):
+        return FileResponse(str(file_path), media_type="video/x-msvideo")
+
+    return FileResponse(str(file_path), media_type="video/mp4")
 
 
 # -----------------------------
