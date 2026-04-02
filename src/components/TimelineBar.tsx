@@ -1,0 +1,92 @@
+import { useState } from "react";
+import type { TimelineEvent } from "./UploadZone";
+
+interface TimelineBarProps {
+  events: TimelineEvent[];
+  duration: number;
+  currentTime: number;
+  onSeek: (time: number) => void;
+}
+
+const decisionColor = {
+  good: "bg-primary",
+  bad: "bg-destructive",
+  neutral: "bg-warning",
+};
+
+const decisionGlow = {
+  good: "shadow-[0_0_8px_hsla(142,72%,50%,0.5)]",
+  bad: "shadow-[0_0_8px_hsla(0,72%,55%,0.5)]",
+  neutral: "shadow-[0_0_8px_hsla(38,92%,55%,0.5)]",
+};
+
+const TimelineBar = ({ events, duration, currentTime, onSeek }: TimelineBarProps) => {
+  const [hoveredEvent, setHoveredEvent] = useState<TimelineEvent | null>(null);
+  const [tooltipX, setTooltipX] = useState(0);
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="relative w-full px-2 py-4">
+      {/* Track */}
+      <div
+        className="relative h-2 rounded-full bg-secondary cursor-pointer group"
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / rect.width;
+          onSeek(x * duration);
+        }}
+      >
+        {/* Progress fill */}
+        <div
+          className="absolute h-full rounded-full bg-primary/30 transition-all duration-150"
+          style={{ width: `${progressPercent}%` }}
+        />
+
+        {/* Event markers */}
+        {events.map((event, i) => {
+          const left = (event.time / duration) * 100;
+          return (
+            <div
+              key={i}
+              className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full cursor-pointer transition-all duration-200 hover:scale-150 ${decisionColor[event.decision]} ${decisionGlow[event.decision]}`}
+              style={{ left: `${left}%`, transform: "translate(-50%, -50%)" }}
+              onMouseEnter={(e) => {
+                setHoveredEvent(event);
+                setTooltipX(e.currentTarget.getBoundingClientRect().left);
+              }}
+              onMouseLeave={() => setHoveredEvent(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSeek(event.time);
+              }}
+            />
+          );
+        })}
+
+        {/* Playhead */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-foreground border-2 border-background shadow-lg transition-all duration-150"
+          style={{ left: `${progressPercent}%`, transform: "translate(-50%, -50%)" }}
+        />
+      </div>
+
+      {/* Tooltip */}
+      {hoveredEvent && (
+        <div
+          className="absolute bottom-full mb-3 glass-strong rounded-xl px-4 py-3 text-sm max-w-xs pointer-events-none animate-scale-in z-50"
+          style={{ left: `${(hoveredEvent.time / duration) * 100}%`, transform: "translateX(-50%)" }}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`w-2 h-2 rounded-full ${decisionColor[hoveredEvent.decision]}`} />
+            <span className="font-semibold capitalize text-foreground">{hoveredEvent.event}</span>
+            <span className="text-muted-foreground">@ {hoveredEvent.time.toFixed(1)}s</span>
+          </div>
+          <p className="text-muted-foreground text-xs leading-relaxed">{hoveredEvent.feedback}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TimelineBar;
