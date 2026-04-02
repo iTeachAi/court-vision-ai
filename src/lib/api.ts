@@ -10,15 +10,21 @@ export interface AnalysisResult {
   timeline: TimelineEvent[];
   total_events: number;
   duration: number;
+  video_url: string;
 }
 
 const API_BASE = "http://127.0.0.1:8000";
+
+export function getVideoUrl(path: string): string {
+  // path comes as "/video/filename.mp4" from backend
+  return `${API_BASE}${path}`;
+}
 
 export async function analyzeVideo(file: File): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE}/predict`, {
+  const response = await fetch(`${API_BASE}/analyze`, {
     method: "POST",
     body: formData,
   });
