@@ -18,7 +18,7 @@ export async function analyzeVideo(file: File): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE}/analyze`, {
+  const response = await fetch(`${API_BASE}/predict`, {
     method: "POST",
     body: formData,
   });
