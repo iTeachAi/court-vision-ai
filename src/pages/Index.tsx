@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import HeroSection from "@/components/HeroSection";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDashboard from "@/components/AnalysisDashboard";
-import { analyzeVideo, type AnalysisResult } from "@/lib/api";
+import { analyzeVideo, getVideoUrl, type AnalysisResult } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 type AppView = "hero" | "upload" | "dashboard";
@@ -16,11 +16,11 @@ const Index = () => {
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
-    setVideoUrl(URL.createObjectURL(file));
 
     try {
       const result = await analyzeVideo(file);
       setAnalysisData(result);
+      setVideoUrl(getVideoUrl(result.video_url));
       setView("dashboard");
     } catch (error) {
       toast({
