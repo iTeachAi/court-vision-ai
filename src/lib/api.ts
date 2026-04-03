@@ -10,7 +10,7 @@ export interface AnalysisResult {
   duration: number;
 }
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://unaugmentable-waterlike-jules.ngrok-free.dev";
 
 export function getVideoUrl(path: string): string {
   return `${API_BASE}${path}`;
