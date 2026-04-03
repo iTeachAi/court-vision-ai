@@ -15,6 +15,8 @@ const decisionColor: Record<string, string> = {
 const CoachFeedback = ({ currentEvent }: CoachFeedbackProps) => {
   const [visible, setVisible] = useState(false);
   const [displayEvent, setDisplayEvent] = useState<TimelineEvent | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const lastSpokenRef = useRef<string>("");
 
   useEffect(() => {
     if (currentEvent) {
@@ -23,11 +25,22 @@ const CoachFeedback = ({ currentEvent }: CoachFeedbackProps) => {
         setDisplayEvent(currentEvent);
         setVisible(true);
       }, 150);
+
+      // Voice feedback
+      if (voiceEnabled && currentEvent.feedback && currentEvent.feedback !== lastSpokenRef.current) {
+        lastSpokenRef.current = currentEvent.feedback;
+        speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(currentEvent.feedback);
+        utterance.rate = 1.1;
+        utterance.pitch = 0.95;
+        speechSynthesis.speak(utterance);
+      }
+
       return () => clearTimeout(t);
     } else {
       setVisible(false);
     }
-  }, [currentEvent]);
+  }, [currentEvent, voiceEnabled]);
 
   if (!displayEvent) {
     return (
