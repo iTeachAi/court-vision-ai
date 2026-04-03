@@ -113,16 +113,22 @@ def run_analysis(video_path, model):
     width = int(cap.get(3))
     height = int(cap.get(4))
 
+    # ---- STEP CALC (MOVE THIS UP) ----
+    STEP_SECONDS = 0.5
+    step = max(1, int(fps * STEP_SECONDS))
+
+    # ---- FIXED FPS ----
+    output_fps = max(1, fps / step)
+
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
-    # ---- VIDEO WRITER ----
     fourcc = cv2.VideoWriter_fourcc(*"avc1")
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
 
     if not out.isOpened():
         output_path = output_path.replace(".mp4", ".avi")
         fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
 
     # ---- STATE ----
     ball_positions = []
@@ -134,9 +140,6 @@ def run_analysis(video_path, model):
     EVENT_BUFFER_SIZE = 3
     SEQUENCE_LENGTH = 3
     POSSESSION_THRESHOLD = 120
-
-    STEP_SECONDS = 0.5
-    step = max(1, int(fps * STEP_SECONDS))
 
     frame_count = 0
     timeline = []
@@ -154,7 +157,7 @@ def run_analysis(video_path, model):
 
             results = model(frame, conf=0.01, imgsz=1280, verbose=False)
 
-            # ---------------- BALL ----------------
+            # ---- BALL ----
             pos = get_ball_position(results)
 
             if pos:
@@ -164,10 +167,10 @@ def run_analysis(video_path, model):
 
             smoothed_pos = smooth_positions(ball_positions)
 
-            # ---------------- TEAMS ----------------
+            # ---- TEAMS ----
             offense_players, defense_players = get_players_by_team(results)
 
-            # ---------------- POSSESSION ----------------
+            # ---- POSSESSION ----
             possession = None
             distance = None
             has_possession = False
@@ -182,7 +185,7 @@ def run_analysis(video_path, model):
                         has_possession = True
                         possession_history.append(possession)
 
-            # ---------------- ADVANTAGE ----------------
+            # ---- ADVANTAGE ----
             defender_distance = None
 
             if has_possession:
@@ -194,10 +197,10 @@ def run_analysis(video_path, model):
                 if defender_distance is not None:
                     advantage_history.append(defender_distance)
 
-            # ---------------- DECISION ----------------
+            # ---- DECISION ----
             possession_decision = evaluate_advantage_decision(advantage_history)
 
-            # ---------------- EVENT ----------------
+            # ---- EVENT ----
             event = classify_event(possession_history)
 
             if event:
@@ -207,7 +210,7 @@ def run_analysis(video_path, model):
 
             stable_event = is_stable_event(event_buffer)
 
-            # ---------------- SEQUENCE ----------------
+            # ---- SEQUENCE ----
             if event and possession_decision:
                 sequence_buffer.append((event, possession_decision))
                 if len(sequence_buffer) > SEQUENCE_LENGTH:
@@ -215,7 +218,7 @@ def run_analysis(video_path, model):
 
             sequence_feedback = interpret_sequence(sequence_buffer)
 
-            # ---------------- FINAL FEEDBACK ----------------
+            # ---- FINAL FEEDBACK ----
             if sequence_feedback:
                 coach_feedback = sequence_feedback
             else:
@@ -225,7 +228,7 @@ def run_analysis(video_path, model):
                     defender_distance
                 )
 
-            # ---------------- TIMELINE ----------------
+            # ---- TIMELINE ----
             if stable_event and coach_feedback:
 
                 if (
@@ -248,10 +251,9 @@ def run_analysis(video_path, model):
                     last_decision = possession_decision
                     last_feedback = coach_feedback
 
-            # ---------------- DRAW ----------------
+            # ---- DRAW ----
             annotated = results[0].plot()
 
-            # ball marker
             if smoothed_pos:
                 cv2.circle(
                     annotated,
@@ -261,7 +263,6 @@ def run_analysis(video_path, model):
                     -1
                 )
 
-            # possession highlight
             if has_possession and possession:
                 cv2.circle(
                     annotated,
@@ -271,7 +272,6 @@ def run_analysis(video_path, model):
                     3
                 )
 
-            # feedback text
             if coach_feedback:
                 cv2.putText(
                     annotated,
@@ -283,7 +283,6 @@ def run_analysis(video_path, model):
                     2
                 )
 
-            # fix color for encoding
             annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
 
             out.write(annotated)
