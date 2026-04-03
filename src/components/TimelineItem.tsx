@@ -1,9 +1,9 @@
 import type { TimelineEvent } from "@/lib/api";
 
-const decisionDot: Record<string, string> = {
-  good: "bg-primary",
-  bad: "bg-destructive",
-  neutral: "bg-warning",
+const eventDot: Record<string, string> = {
+  drive: "bg-primary",
+  retreat: "bg-destructive",
+  stall: "bg-warning",
 };
 
 interface TimelineItemProps {
@@ -23,7 +23,7 @@ const TimelineItem = ({ event, isActive, index, onSeek }: TimelineItemProps) => 
     style={{ animationDelay: `${index * 0.05}s` }}
   >
     <div className="flex items-center gap-3">
-      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${decisionDot[event.decision]}`} />
+      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${eventDot[event.event] || "bg-muted-foreground"}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-foreground capitalize">{event.event}</span>
