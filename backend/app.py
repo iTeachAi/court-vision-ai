@@ -202,9 +202,10 @@ def run_analysis(video_path, model):
 
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
-    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
+    
+    # Fallback to AVI if needed
     if not out.isOpened():
         output_path = output_path.replace(".mp4", ".avi")
         fourcc = cv2.VideoWriter_fourcc(*"XVID")
