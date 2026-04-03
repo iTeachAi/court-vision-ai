@@ -67,6 +67,76 @@ def get_ball_position(results):
     return best_ball
 
 
+def get_players_by_team(results):
+    offense_players = []
+    defense_players = []
+
+    for box in results[0].boxes:
+        cls = int(box.cls[0])
+        label = results[0].names[cls]
+
+        if label not in ["offense", "defense"]:
+            continue
+
+        x1, y1, x2, y2 = box.xyxy[0]
+        center = ((x1 + x2) / 2, (y1 + y2) / 2)
+
+        if label == "offense":
+            offense_players.append(center)
+        elif label == "defense":
+            defense_players.append(center)
+
+    return offense_players, defense_players
+
+
+def get_possession_player(ball_pos, players):
+    if ball_pos is None or len(players) == 0:
+        return None
+
+    closest = None
+    min_dist = float("inf")
+
+    for p in players:
+        dist = math.dist(ball_pos, p)
+        if dist < min_dist:
+            min_dist = dist
+            closest = p
+
+    return closest, min_dist
+
+
+def get_nearest_defender_distance(player, defenders):
+    if player is None or len(defenders) == 0:
+        return None
+
+    min_dist = float("inf")
+
+    for d in defenders:
+        dist = math.dist(player, d)
+        if dist < min_dist:
+            min_dist = dist
+
+    return min_dist
+
+
+def evaluate_advantage_decision(history):
+    if len(history) < 5:
+        return None
+
+    start = history[-5]
+    end = history[-1]
+    delta = end - start
+
+    if abs(delta) < 5:
+        return "neutral"
+
+    return "good" if delta > 0 else "bad"
+
+
+def is_stable_event(buffer):
+    return len(buffer) > 0 and len(set(buffer)) == 1
+
+
 def smooth_positions(positions, window=3):
     if len(positions) == 0:
         return None
@@ -92,13 +162,30 @@ def classify_event(history):
     return "drive" if delta > 0 else "retreat"
 
 
-def generate_feedback(event):
+def generate_coach_feedback(event, decision, defender_distance):
     if event == "drive":
-        return "Attack with purpose."
+        return "Attack with purpose." if decision != "bad" else "Stop. You're driving into pressure."
     elif event == "retreat":
-        return "Don't give up space."
+        return "Reset properly." if decision != "bad" else "Don't give up advantage."
     elif event == "stall":
         return "Make a decision."
+    return None
+
+
+def interpret_sequence(sequence):
+    if len(sequence) < 3:
+        return None
+
+    e1, d1 = sequence[-3]
+    e2, d2 = sequence[-2]
+    e3, d3 = sequence[-1]
+
+    if e1 == "drive" and d1 == "bad" and e2 == "retreat":
+        return "You attacked into pressure and gave up advantage."
+
+    if e1 == "stall" and e2 == "stall":
+        return "You're holding too long."
+
     return None
 
 
@@ -113,22 +200,15 @@ def run_analysis(video_path, model):
     width = int(cap.get(3))
     height = int(cap.get(4))
 
-    # ---- STEP CALC (MOVE THIS UP) ----
-    STEP_SECONDS = 0.5
-    step = max(1, int(fps * STEP_SECONDS))
-
-    # ---- FIXED FPS ----
-    output_fps = max(1, fps / step)
-
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
     fourcc = cv2.VideoWriter_fourcc(*"avc1")
-    out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     if not out.isOpened():
         output_path = output_path.replace(".mp4", ".avi")
         fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     # ---- STATE ----
     ball_positions = []
@@ -141,6 +221,9 @@ def run_analysis(video_path, model):
     SEQUENCE_LENGTH = 3
     POSSESSION_THRESHOLD = 120
 
+    STEP_SECONDS = 0.5
+    step = max(1, int(fps * STEP_SECONDS))
+
     frame_count = 0
     timeline = []
 
@@ -148,16 +231,20 @@ def run_analysis(video_path, model):
     last_decision = None
     last_feedback = None
 
+    last_results = None
+
     while True:
         ret, frame = cap.read()
-        if not ret or frame is None:
+        if not ret:
             break
 
         if frame_count % step == 0:
+            last_results = model(frame, conf=0.01, imgsz=1280, verbose=False)
 
-            results = model(frame, conf=0.01, imgsz=1280, verbose=False)
+        results = last_results
 
-            # ---- BALL ----
+        if results is not None:
+
             pos = get_ball_position(results)
 
             if pos:
@@ -167,12 +254,9 @@ def run_analysis(video_path, model):
 
             smoothed_pos = smooth_positions(ball_positions)
 
-            # ---- TEAMS ----
             offense_players, defense_players = get_players_by_team(results)
 
-            # ---- POSSESSION ----
             possession = None
-            distance = None
             has_possession = False
 
             if smoothed_pos is not None:
@@ -180,27 +264,18 @@ def run_analysis(video_path, model):
 
                 if data:
                     possession, distance = data
-
                     if distance < POSSESSION_THRESHOLD:
                         has_possession = True
                         possession_history.append(possession)
 
-            # ---- ADVANTAGE ----
             defender_distance = None
 
             if has_possession:
-                defender_distance = get_nearest_defender_distance(
-                    possession,
-                    defense_players
-                )
-
+                defender_distance = get_nearest_defender_distance(possession, defense_players)
                 if defender_distance is not None:
                     advantage_history.append(defender_distance)
 
-            # ---- DECISION ----
             possession_decision = evaluate_advantage_decision(advantage_history)
-
-            # ---- EVENT ----
             event = classify_event(possession_history)
 
             if event:
@@ -210,7 +285,6 @@ def run_analysis(video_path, model):
 
             stable_event = is_stable_event(event_buffer)
 
-            # ---- SEQUENCE ----
             if event and possession_decision:
                 sequence_buffer.append((event, possession_decision))
                 if len(sequence_buffer) > SEQUENCE_LENGTH:
@@ -218,74 +292,40 @@ def run_analysis(video_path, model):
 
             sequence_feedback = interpret_sequence(sequence_buffer)
 
-            # ---- FINAL FEEDBACK ----
-            if sequence_feedback:
-                coach_feedback = sequence_feedback
-            else:
-                coach_feedback = generate_coach_feedback(
-                    event,
-                    possession_decision,
-                    defender_distance
-                )
+            coach_feedback = sequence_feedback or generate_coach_feedback(
+                event, possession_decision, defender_distance
+            )
 
-            # ---- TIMELINE ----
             if stable_event and coach_feedback:
-
-                if (
-                    event != last_event
-                    or possession_decision != last_decision
-                    or coach_feedback != last_feedback
-                ):
-
-                    current_time = frame_count / fps
+                if event != last_event or coach_feedback != last_feedback:
 
                     timeline.append({
-                        "time": round(current_time, 2),
+                        "time": round(frame_count / fps, 2),
                         "event": event,
                         "decision": possession_decision,
-                        "defender_distance": None if defender_distance is None else float(defender_distance),
                         "feedback": coach_feedback
                     })
 
                     last_event = event
-                    last_decision = possession_decision
                     last_feedback = coach_feedback
 
-            # ---- DRAW ----
             annotated = results[0].plot()
 
             if smoothed_pos:
-                cv2.circle(
-                    annotated,
-                    (int(smoothed_pos[0]), int(smoothed_pos[1])),
-                    8,
-                    (0, 255, 0),
-                    -1
-                )
+                cv2.circle(annotated, (int(smoothed_pos[0]), int(smoothed_pos[1])), 8, (0, 255, 0), -1)
 
             if has_possession and possession:
-                cv2.circle(
-                    annotated,
-                    (int(possession[0]), int(possession[1])),
-                    12,
-                    (0, 255, 255),
-                    3
-                )
+                cv2.circle(annotated, (int(possession[0]), int(possession[1])), 12, (0, 255, 255), 3)
 
             if coach_feedback:
-                cv2.putText(
-                    annotated,
-                    coach_feedback[:60],
-                    (30, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (255, 255, 255),
-                    2
-                )
+                cv2.putText(annotated, coach_feedback[:60], (30, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        else:
+            annotated = frame
 
-            out.write(annotated)
+        annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        out.write(annotated)
 
         frame_count += 1
 
