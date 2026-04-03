@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { TimelineEvent } from "@/lib/api";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Volume2, VolumeX } from "lucide-react";
 
 interface CoachFeedbackProps {
   currentEvent: TimelineEvent | null;
