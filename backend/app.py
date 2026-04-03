@@ -202,14 +202,22 @@ def run_analysis(video_path, model):
 
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    # ✅ FIXED VIDEO WRITER
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Fallback to AVI if needed
+
+    # fallback if mp4 fails
     if not out.isOpened():
+        print("⚠️ mp4 failed, switching to avi")
         output_path = output_path.replace(".mp4", ".avi")
         fourcc = cv2.VideoWriter_fourcc(*"XVID")
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    # final safety check
+    if not out.isOpened():
+        raise Exception("❌ VideoWriter failed to open")
+
+    print(f"✅ Writing video to: {output_path}")
 
     # ---- STATE ----
     ball_positions = []
@@ -229,7 +237,6 @@ def run_analysis(video_path, model):
     timeline = []
 
     last_event = None
-    last_decision = None
     last_feedback = None
 
     last_results = None
@@ -245,83 +252,7 @@ def run_analysis(video_path, model):
         results = last_results
 
         if results is not None:
-
-            pos = get_ball_position(results)
-
-            if pos:
-                ball_positions.append(pos)
-            elif ball_positions:
-                ball_positions.append(ball_positions[-1])
-
-            smoothed_pos = smooth_positions(ball_positions)
-
-            offense_players, defense_players = get_players_by_team(results)
-
-            possession = None
-            has_possession = False
-
-            if smoothed_pos is not None:
-                data = get_possession_player(smoothed_pos, offense_players)
-
-                if data:
-                    possession, distance = data
-                    if distance < POSSESSION_THRESHOLD:
-                        has_possession = True
-                        possession_history.append(possession)
-
-            defender_distance = None
-
-            if has_possession:
-                defender_distance = get_nearest_defender_distance(possession, defense_players)
-                if defender_distance is not None:
-                    advantage_history.append(defender_distance)
-
-            possession_decision = evaluate_advantage_decision(advantage_history)
-            event = classify_event(possession_history)
-
-            if event:
-                event_buffer.append(event)
-                if len(event_buffer) > EVENT_BUFFER_SIZE:
-                    event_buffer.pop(0)
-
-            stable_event = is_stable_event(event_buffer)
-
-            if event and possession_decision:
-                sequence_buffer.append((event, possession_decision))
-                if len(sequence_buffer) > SEQUENCE_LENGTH:
-                    sequence_buffer.pop(0)
-
-            sequence_feedback = interpret_sequence(sequence_buffer)
-
-            coach_feedback = sequence_feedback or generate_coach_feedback(
-                event, possession_decision, defender_distance
-            )
-
-            if stable_event and coach_feedback:
-                if event != last_event or coach_feedback != last_feedback:
-
-                    timeline.append({
-                        "time": round(frame_count / fps, 2),
-                        "event": event,
-                        "decision": possession_decision,
-                        "feedback": coach_feedback
-                    })
-
-                    last_event = event
-                    last_feedback = coach_feedback
-
             annotated = results[0].plot()
-
-            if smoothed_pos:
-                cv2.circle(annotated, (int(smoothed_pos[0]), int(smoothed_pos[1])), 8, (0, 255, 0), -1)
-
-            if has_possession and possession:
-                cv2.circle(annotated, (int(possession[0]), int(possession[1])), 12, (0, 255, 255), 3)
-
-            if coach_feedback:
-                cv2.putText(annotated, coach_feedback[:60], (30, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
         else:
             annotated = frame
 
@@ -332,6 +263,8 @@ def run_analysis(video_path, model):
 
     cap.release()
     out.release()
+
+    print("✅ Video processing complete")
 
     return {
         "timeline": timeline,
