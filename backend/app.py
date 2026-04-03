@@ -7,7 +7,11 @@ import cv2
 import shutil
 import math
 
-app = FastAPI(title="Basketball AI Coach")
+app = FastAPI(
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 ROOT = Path(__file__).resolve().parent
 TEMP_DIR = ROOT / "temp"
