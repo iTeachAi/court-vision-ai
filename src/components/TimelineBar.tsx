@@ -8,16 +8,16 @@ interface TimelineBarProps {
   onSeek: (time: number) => void;
 }
 
-const decisionColor: Record<string, string> = {
-  good: "bg-primary",
-  bad: "bg-destructive",
-  neutral: "bg-warning",
+const eventColor: Record<string, string> = {
+  drive: "bg-primary",
+  retreat: "bg-destructive",
+  stall: "bg-warning",
 };
 
-const decisionGlow: Record<string, string> = {
-  good: "shadow-[0_0_8px_hsla(142,72%,50%,0.5)]",
-  bad: "shadow-[0_0_8px_hsla(0,72%,55%,0.5)]",
-  neutral: "shadow-[0_0_8px_hsla(38,92%,55%,0.5)]",
+const eventGlow: Record<string, string> = {
+  drive: "shadow-[0_0_8px_hsla(142,72%,50%,0.5)]",
+  retreat: "shadow-[0_0_8px_hsla(0,72%,55%,0.5)]",
+  stall: "shadow-[0_0_8px_hsla(38,92%,55%,0.5)]",
 };
 
 const TimelineBar = ({ events, duration, currentTime, onSeek }: TimelineBarProps) => {
@@ -44,7 +44,7 @@ const TimelineBar = ({ events, duration, currentTime, onSeek }: TimelineBarProps
           return (
             <div
               key={i}
-              className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full cursor-pointer transition-all duration-200 hover:scale-150 ${decisionColor[event.decision]} ${decisionGlow[event.decision]}`}
+              className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full cursor-pointer transition-all duration-200 hover:scale-150 ${eventColor[event.event] || "bg-muted-foreground"} ${eventGlow[event.event] || ""}`}
               style={{ left: `${left}%`, transform: "translate(-50%, -50%)" }}
               onMouseEnter={() => setHoveredEvent(event)}
               onMouseLeave={() => setHoveredEvent(null)}
@@ -65,7 +65,7 @@ const TimelineBar = ({ events, duration, currentTime, onSeek }: TimelineBarProps
           style={{ left: `${(hoveredEvent.time / duration) * 100}%`, transform: "translateX(-50%)" }}
         >
           <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full ${decisionColor[hoveredEvent.decision]}`} />
+            <span className={`w-2 h-2 rounded-full ${eventColor[hoveredEvent.event] || "bg-muted-foreground"}`} />
             <span className="font-semibold capitalize text-foreground">{hoveredEvent.event}</span>
             <span className="text-muted-foreground">@ {hoveredEvent.time.toFixed(1)}s</span>
           </div>
