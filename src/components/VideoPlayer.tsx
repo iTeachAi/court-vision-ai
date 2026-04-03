@@ -2,10 +2,10 @@ import { forwardRef, useState } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 import type { TimelineEvent } from "@/lib/api";
 
-const decisionDot: Record<string, string> = {
-  good: "bg-primary",
-  bad: "bg-destructive",
-  neutral: "bg-warning",
+const eventDot: Record<string, string> = {
+  drive: "bg-primary",
+  retreat: "bg-destructive",
+  stall: "bg-warning",
 };
 
 interface VideoPlayerProps {
