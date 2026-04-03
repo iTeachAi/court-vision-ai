@@ -59,11 +59,20 @@ const CoachFeedback = ({ currentEvent }: CoachFeedbackProps) => {
 
   return (
     <div className={`px-6 py-8 transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
-      <div className="flex items-center gap-3 mb-4">
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${colorClass}`}>
-          {displayEvent.event}
-        </span>
-        <span className="text-xs text-muted-foreground">{displayEvent.time.toFixed(1)}s</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${colorClass}`}>
+            {displayEvent.event}
+          </span>
+          <span className="text-xs text-muted-foreground">{displayEvent.time.toFixed(1)}s</span>
+        </div>
+        <button
+          onClick={() => { setVoiceEnabled((v) => !v); if (voiceEnabled) speechSynthesis.cancel(); }}
+          className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary hover:bg-accent transition-colors"
+          title={voiceEnabled ? "Mute voice" : "Enable voice"}
+        >
+          {voiceEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
+        </button>
       </div>
       <h3 className="text-2xl font-bold text-foreground capitalize mb-3">{displayEvent.event}</h3>
       <p className="text-base leading-relaxed text-secondary-foreground">{displayEvent.feedback}</p>
