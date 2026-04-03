@@ -18,16 +18,12 @@ const AnalysisDashboard = ({ data, videoUrl }: AnalysisDashboardProps) => {
 
   const findCurrentEvent = useCallback(
     (time: number) => {
-      let closest: TimelineEvent | null = null;
-      let minDist = Infinity;
+      let result: TimelineEvent | null = null;
       for (const ev of data.timeline) {
-        const dist = Math.abs(ev.time - time);
-        if (dist < 1.5 && dist < minDist) {
-          minDist = dist;
-          closest = ev;
-        }
+        if (ev.time <= time) result = ev;
+        else break;
       }
-      return closest;
+      return result;
     },
     [data.timeline]
   );
