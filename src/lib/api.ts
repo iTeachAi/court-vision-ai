@@ -32,6 +32,7 @@ export async function analyzeVideo(file: File): Promise<AnalysisResult> {
   const response = await fetch(`${API_BASE}/analyze`, {
     method: "POST",
     body: formData,
+    headers: { "ngrok-skip-browser-warning": "true" },
   });
 
   if (!response.ok) {
