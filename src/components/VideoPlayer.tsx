@@ -50,7 +50,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 
         {activeEvent && (
           <div className="absolute top-4 left-4 glass-strong rounded-xl px-4 py-2 flex items-center gap-2 animate-scale-in">
-            <span className={`w-2 h-2 rounded-full ${decisionDot[activeEvent.decision]}`} />
+            <span className={`w-2 h-2 rounded-full ${eventDot[activeEvent.event] || "bg-muted-foreground"}`} />
             <span className="text-sm font-medium text-foreground capitalize">{activeEvent.event}</span>
           </div>
         )}
