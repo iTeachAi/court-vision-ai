@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import HeroSection from "@/components/HeroSection";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDashboard from "@/components/AnalysisDashboard";
-import { analyzeVideo, getVideoUrl, type AnalysisResult } from "@/lib/api";
+import { analyzeVideo, fetchVideoBlob, type AnalysisResult } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 type AppView = "hero" | "upload" | "dashboard";
@@ -20,7 +20,8 @@ const Index = () => {
     try {
       const result = await analyzeVideo(file);
       setAnalysisData(result);
-      setVideoUrl(getVideoUrl(result.video_url));
+      const blobUrl = await fetchVideoBlob(result.video_url);
+      setVideoUrl(blobUrl);
       setView("dashboard");
     } catch (error) {
       toast({
