@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import HeroSection from "@/components/HeroSection";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDashboard from "@/components/AnalysisDashboard";
-import { analyzeVideo, getVideoUrl, type AnalysisResult } from "@/lib/api";
+import { analyzeVideo, fetchVideoBlob, type AnalysisResult } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 type AppView = "hero" | "upload" | "dashboard";
