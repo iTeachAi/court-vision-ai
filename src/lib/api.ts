@@ -1,22 +1,18 @@
 export interface TimelineEvent {
   time: number;
   event: string;
-  decision: "good" | "bad" | "neutral";
-  defender_distance: number;
   feedback: string;
 }
 
 export interface AnalysisResult {
   timeline: TimelineEvent[];
-  total_events: number;
-  duration: number;
   video_url: string;
+  duration: number;
 }
 
 const API_BASE = "http://127.0.0.1:8000";
 
 export function getVideoUrl(path: string): string {
-  // path comes as "/video/filename.mp4" from backend
   return `${API_BASE}${path}`;
 }
 

@@ -2,10 +2,10 @@ import { forwardRef, useState } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 import type { TimelineEvent } from "@/lib/api";
 
-const decisionDot: Record<string, string> = {
-  good: "bg-primary",
-  bad: "bg-destructive",
-  neutral: "bg-warning",
+const eventDot: Record<string, string> = {
+  drive: "bg-primary",
+  retreat: "bg-destructive",
+  stall: "bg-warning",
 };
 
 interface VideoPlayerProps {
@@ -50,7 +50,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 
         {activeEvent && (
           <div className="absolute top-4 left-4 glass-strong rounded-xl px-4 py-2 flex items-center gap-2 animate-scale-in">
-            <span className={`w-2 h-2 rounded-full ${decisionDot[activeEvent.decision]}`} />
+            <span className={`w-2 h-2 rounded-full ${eventDot[activeEvent.event] || "bg-muted-foreground"}`} />
             <span className="text-sm font-medium text-foreground capitalize">{activeEvent.event}</span>
           </div>
         )}
