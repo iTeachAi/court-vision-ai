@@ -20,7 +20,8 @@ const Index = () => {
     try {
       const result = await analyzeVideo(file);
       setAnalysisData(result);
-      setVideoUrl(getVideoUrl(result.video_url));
+      const blobUrl = await fetchVideoBlob(result.video_url);
+      setVideoUrl(blobUrl);
       setView("dashboard");
     } catch (error) {
       toast({
