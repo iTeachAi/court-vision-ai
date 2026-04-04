@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 import cv2
 import shutil
 import math
+import os
+import subprocess
 
 app = FastAPI(
     docs_url="/docs",
@@ -194,55 +196,91 @@ def interpret_sequence(sequence):
 
 
 # -----------------------------
+# VIDEO WRITER HELPER
+# -----------------------------
+def create_video_writer(video_path, fps, width, height):
+    """
+    Create a VideoWriter that works on servers without hardware encoders.
+
+    Strategy:
+      1. Try mp4v → .mp4   (works on most desktops)
+      2. Try XVID → .avi   (common fallback)
+      3. Fall back to MJPG → .avi  (universally supported, every OpenCV build)
+
+    After processing we optionally re-encode to H.264 mp4 via ffmpeg so the
+    browser can play it natively.
+    """
+    stem = Path(video_path).stem
+
+    codec_attempts = [
+        (str(TEMP_DIR / f"{stem}_annotated.mp4"),    "mp4v"),
+        (str(TEMP_DIR / f"{stem}_annotated.avi"),     "XVID"),
+        (str(TEMP_DIR / f"{stem}_annotated_mjpg.avi"), "MJPG"),
+    ]
+
+    for path, codec in codec_attempts:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        writer = cv2.VideoWriter(path, fourcc, fps, (width, height))
+        if writer.isOpened():
+            print(f"[video] Using codec {codec} -> {path}")
+            return writer, path
+        print(f"[video] Codec {codec} failed, trying next...")
+
+    raise RuntimeError("VideoWriter failed: no working codec found on this system")
+
+
+def convert_to_mp4(source_path):
+    """
+    If the raw output is not already .mp4, use ffmpeg (libx264) to produce a
+    browser-friendly mp4.  Returns the final path to serve.
+    """
+    if source_path.endswith(".mp4"):
+        return source_path
+
+    mp4_path = source_path.rsplit(".", 1)[0] + ".mp4"
+
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", source_path,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                mp4_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+
+        if result.returncode == 0 and os.path.exists(mp4_path):
+            print(f"[video] ffmpeg converted -> {mp4_path}")
+            os.remove(source_path)          # clean up raw file
+            return mp4_path
+        else:
+            print(f"[video] ffmpeg failed (rc={result.returncode}): {result.stderr[:300]}")
+    except FileNotFoundError:
+        print("[video] ffmpeg not installed — serving raw file")
+    except subprocess.TimeoutExpired:
+        print("[video] ffmpeg timed out — serving raw file")
+
+    return source_path                       # serve the avi as-is
+
+
+# -----------------------------
 # MAIN ANALYSIS
 # -----------------------------
-    def run_analysis(video_path, model):
+def run_analysis(video_path, model):
     cap = cv2.VideoCapture(video_path)
 
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
-    width = int(cap.get(3))
-    height = int(cap.get(4))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
-
-    # Try codecs in order of compatibility
-    writer_configs = [
-        (str(TEMP_DIR / (Path(video_path).stem + "_annotated_mp4.mp4")),
-         cv2.VideoWriter_fourcc(*"mp4v"),
-         "mp4v"),
-    
-        (str(TEMP_DIR / (Path(video_path).stem + "_annotated_xvid.avi")),
-         cv2.VideoWriter_fourcc(*"XVID"),
-         "XVID"),
-    ]
-
-    out = None
-    final_output_path = None
-
-    for path, fourcc, _ in writer_configs:
-        out = cv2.VideoWriter(path, fourcc, fps, (width, height))
-        if out.isOpened():
-            final_output_path = path
-            print(f"✅ Writing video to: {path}")
-            break
-        print(f"⚠️ Codec failed for {path}, trying next...")
-
-    if out is None or not out.isOpened():
-        raise Exception("❌ VideoWriter failed: no working codec found")
-    
-    output_path = final_output_path  # use this going forward
-
-    print(f"✅ Writing video to: {output_path}")
-    
-    if os.path.exists(output_path):
-        size = os.path.getsize(output_path)
-        print("📦 File size:", size)
-    
-        if size < 1000:  # basically empty/broken
-            raise Exception("❌ Video file too small — encoding failed")
-    else:
-        raise Exception("❌ Output file not created")
-        
+    out, raw_output_path = create_video_writer(video_path, fps, width, height)
 
     # ---------------- STATE ----------------
     ball_positions = []
@@ -371,8 +409,7 @@ def interpret_sequence(sequence):
         else:
             annotated = frame
 
-        # ---- ALWAYS WRITE FRAME ----
-        annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        # ---- WRITE FRAME (BGR — OpenCV native) ----
         out.write(annotated)
 
         frame_count += 1
@@ -380,7 +417,20 @@ def interpret_sequence(sequence):
     cap.release()
     out.release()
 
-    print("✅ Video processing complete")
+    # ---- VALIDATE OUTPUT ----
+    if not os.path.exists(raw_output_path):
+        raise RuntimeError("Output video file was not created")
+
+    file_size = os.path.getsize(raw_output_path)
+    print(f"[video] Raw file size: {file_size} bytes")
+
+    if file_size < 1000:
+        raise RuntimeError("Output video file is too small — encoding likely failed")
+
+    # ---- CONVERT TO MP4 (if needed) ----
+    output_path = convert_to_mp4(raw_output_path)
+
+    print(f"[video] Processing complete -> {output_path}")
 
     return {
         "timeline": timeline,
@@ -417,6 +467,7 @@ def get_video(filename: str):
     if filename.endswith(".avi"):
         return FileResponse(str(file_path), media_type="video/x-msvideo")
     return FileResponse(str(file_path), media_type="video/mp4")
+
 
 # -----------------------------
 # CORS
