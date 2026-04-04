@@ -12,11 +12,16 @@ export interface AnalysisResult {
 
 const API_BASE = "https://api.courtiq.cfd";
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function getVideoUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
 export async function fetchVideoBlob(path: string): Promise<string> {
+  // Wait 5 seconds for the backend to finish writing the file
+  await delay(5000);
+
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "ngrok-skip-browser-warning": "true" },
   });
