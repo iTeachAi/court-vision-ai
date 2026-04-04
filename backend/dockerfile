@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 # Prevent Python from buffering logs
 ENV PYTHONUNBUFFERED=1
@@ -27,6 +27,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # COPY APP
 # -----------------------------
 COPY . .
+
+RUN pip install --no=cache-dir \
+    fastapi \
+    uvicorn \
+    opencv-python \
+    ultralytics \ 
+    python-multipart
 
 # -----------------------------
 # CREATE TEMP DIRECTORY
