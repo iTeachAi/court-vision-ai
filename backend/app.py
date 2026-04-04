@@ -207,9 +207,13 @@ def interpret_sequence(sequence):
 
     # Try codecs in order of compatibility
     writer_configs = [
-        (output_path, cv2.VideoWriter_fourcc(*"mp4v"), "video/mp4"),
-        (output_path.replace(".mp4", ".avi"), cv2.VideoWriter_fourcc(*"XVID"), "video/x-msvideo"),
-        (output_path.replace(".mp4", ".avi"), cv2.VideoWriter_fourcc(*"MJPG"), "video/x-msvideo"),
+        (str(TEMP_DIR / (Path(video_path).stem + "_annotated_mp4.mp4")),
+         cv2.VideoWriter_fourcc(*"mp4v"),
+         "mp4v"),
+    
+        (str(TEMP_DIR / (Path(video_path).stem + "_annotated_xvid.avi")),
+         cv2.VideoWriter_fourcc(*"XVID"),
+         "XVID"),
     ]
 
     out = None
@@ -229,6 +233,16 @@ def interpret_sequence(sequence):
     output_path = final_output_path  # use this going forward
 
     print(f"✅ Writing video to: {output_path}")
+    
+    if os.path.exists(output_path):
+        size = os.path.getsize(output_path)
+        print("📦 File size:", size)
+    
+        if size < 1000:  # basically empty/broken
+            raise Exception("❌ Video file too small — encoding failed")
+    else:
+        raise Exception("❌ Output file not created")
+        
 
     # ---------------- STATE ----------------
     ball_positions = []
