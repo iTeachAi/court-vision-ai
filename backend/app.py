@@ -196,8 +196,7 @@ def interpret_sequence(sequence):
 # -----------------------------
 # MAIN ANALYSIS
 # -----------------------------
-def run_analysis(video_path, model):
-
+    def run_analysis(video_path, model):
     cap = cv2.VideoCapture(video_path)
 
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
@@ -206,17 +205,28 @@ def run_analysis(video_path, model):
 
     output_path = str(TEMP_DIR / (Path(video_path).stem + "_annotated.mp4"))
 
-    fourcc = cv2.VideoWriter_fourcc(*"avc1")
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    # Try codecs in order of compatibility
+    writer_configs = [
+        (output_path, cv2.VideoWriter_fourcc(*"mp4v"), "video/mp4"),
+        (output_path.replace(".mp4", ".avi"), cv2.VideoWriter_fourcc(*"XVID"), "video/x-msvideo"),
+        (output_path.replace(".mp4", ".avi"), cv2.VideoWriter_fourcc(*"MJPG"), "video/x-msvideo"),
+    ]
 
-    if not out.isOpened():
-        print("⚠️ mp4 failed, switching to avi")
-        output_path = output_path.replace(".mp4", ".avi")
-        fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    out = None
+    final_output_path = None
 
-    if not out.isOpened():
-        raise Exception("❌ VideoWriter failed")
+    for path, fourcc, _ in writer_configs:
+        out = cv2.VideoWriter(path, fourcc, fps, (width, height))
+        if out.isOpened():
+            final_output_path = path
+            print(f"✅ Writing video to: {path}")
+            break
+        print(f"⚠️ Codec failed for {path}, trying next...")
+
+    if out is None or not out.isOpened():
+        raise Exception("❌ VideoWriter failed: no working codec found")
+    
+    output_path = final_output_path  # use this going forward
 
     print(f"✅ Writing video to: {output_path}")
 
@@ -387,14 +397,12 @@ async def analyze(file: UploadFile = File(...)):
 # -----------------------------
 @app.get("/video/{filename}")
 def get_video(filename: str):
-
     file_path = TEMP_DIR / filename
-
+    if not file_path.exists():
+        return {"error": "File not found"}
     if filename.endswith(".avi"):
         return FileResponse(str(file_path), media_type="video/x-msvideo")
-
     return FileResponse(str(file_path), media_type="video/mp4")
-
 
 # -----------------------------
 # CORS
