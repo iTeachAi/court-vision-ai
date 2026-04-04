@@ -38,6 +38,14 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       setPlaying(true);
     };
 
+    if (!videoUrl) {
+      return (
+        <div className="relative rounded-2xl overflow-hidden glass flex items-center justify-center aspect-video bg-background/80">
+          <p className="text-muted-foreground text-sm">No video available</p>
+        </div>
+      );
+    }
+
     return (
       <div className="relative rounded-2xl overflow-hidden glass">
         <video
