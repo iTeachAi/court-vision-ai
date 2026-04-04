@@ -10,7 +10,7 @@ export interface AnalysisResult {
   duration: number;
 }
 
-const API_BASE = "https://unaugmentable-waterlike-jules.ngrok-free.dev";
+const API_BASE = "https://api.courtiq.cfd";
 
 export function getVideoUrl(path: string): string {
   return `${API_BASE}${path}`;
