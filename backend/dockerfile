@@ -32,7 +32,7 @@
     COPY . .
     
     # OPTIONAL (only if not in requirements.txt)
-    RUN pip install --no-cache-dir \
+    RUN pip install \
         fastapi \
         uvicorn \
         opencv-python \
