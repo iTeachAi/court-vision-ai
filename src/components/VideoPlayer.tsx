@@ -52,7 +52,10 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           ref={ref}
           src={videoUrl}
           className="w-full aspect-video bg-background/80"
+          playsInline
           onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
         />
 

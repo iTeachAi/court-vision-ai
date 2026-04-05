@@ -475,10 +475,13 @@ def get_video(filename: str):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://courtiq.cfd",
+        "https://www.courtiq.cfd",
         "http://localhost:3000",
+        "http://localhost:8080",
         "http://localhost:5173",
     ],
-    allow_origin_regex="https://.*\\.trycloudflare\\.com",
+    allow_origin_regex=r"https://.*\.trycloudflare\.com|https://.*\.courtiq\.cfd",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

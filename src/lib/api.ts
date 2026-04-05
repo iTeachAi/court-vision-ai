@@ -10,19 +10,33 @@ export interface AnalysisResult {
   duration: number;
 }
 
-const API_BASE = "https://api.courtiq.cfd";
+const DEFAULT_API_BASE = "https://api.courtiq.cfd";
+const API_BASE = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE);
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+function withApiBase(path: string): string {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
+}
+
 export function getVideoUrl(path: string): string {
-  return `${API_BASE}${path}`;
+  return withApiBase(path);
 }
 
 export async function fetchVideoBlob(path: string): Promise<string> {
   // Wait 5 seconds for the backend to finish writing the file
   await delay(5000);
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(withApiBase(path), {
     headers: { "ngrok-skip-browser-warning": "true" },
   });
   if (!res.ok) throw new Error("Failed to load video");
@@ -34,7 +48,7 @@ export async function analyzeVideo(file: File): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE}/analyze`, {
+  const response = await fetch(withApiBase("/analyze"), {
     method: "POST",
     body: formData,
     headers: { "ngrok-skip-browser-warning": "true" },
