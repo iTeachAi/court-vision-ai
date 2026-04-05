@@ -19,6 +19,7 @@ interface VideoPlayerProps {
 const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
   ({ videoUrl, currentTime, duration, activeEvent, onTimeUpdate }, ref) => {
     const [playing, setPlaying] = useState(false);
+    const [videoError, setVideoError] = useState<string | null>(null);
 
     const videoEl = () => (ref as React.RefObject<HTMLVideoElement>)?.current;
 
@@ -51,10 +52,24 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
         <video
           ref={ref}
           src={videoUrl}
+          controls
+          playsInline
+          preload="metadata"
           className="w-full aspect-video bg-background/80"
           onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
           onEnded={() => setPlaying(false)}
+          onError={() => {
+            setPlaying(false);
+            setVideoError("Could not load the processed video.");
+          }}
+          onLoadedData={() => setVideoError(null)}
         />
+
+        {videoError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+            <p className="text-sm text-destructive font-medium">{videoError}</p>
+          </div>
+        )}
 
         {activeEvent && (
           <div className="absolute top-4 left-4 glass-strong rounded-xl px-4 py-2 flex items-center gap-2 animate-scale-in">

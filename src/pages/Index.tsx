@@ -2,10 +2,8 @@ import { useState, useCallback } from "react";
 import HeroSection from "@/components/HeroSection";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDashboard from "@/components/AnalysisDashboard";
-import { analyzeVideo, type AnalysisResult } from "@/lib/api";
+import { analyzeVideo, getVideoUrl, type AnalysisResult } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
-const BASE_URL = "https://courtiq.cfd";
 
 type AppView = "hero" | "upload" | "dashboard";
 
@@ -26,7 +24,7 @@ const Index = () => {
         throw new Error("Server returned an invalid video URL.");
       }
 
-      const fullVideoUrl = `${BASE_URL}${result.video_url}`;
+      const fullVideoUrl = getVideoUrl(result.video_url);
 
       setAnalysisData(result);
       setVideoUrl(fullVideoUrl);

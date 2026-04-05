@@ -200,74 +200,90 @@ def interpret_sequence(sequence):
 # -----------------------------
 def create_video_writer(video_path, fps, width, height):
     """
-    Create a VideoWriter that works on servers without hardware encoders.
+    Create a VideoWriter using MJPG in AVI.
 
-    Strategy:
-      1. Try mp4v → .mp4   (works on most desktops)
-      2. Try XVID → .avi   (common fallback)
-      3. Fall back to MJPG → .avi  (universally supported, every OpenCV build)
-
-    After processing we optionally re-encode to H.264 mp4 via ffmpeg so the
-    browser can play it natively.
+    Why: in many containerized Linux environments OpenCV/FFmpeg tries to route
+    mp4/h264 encodes to hardware backends (e.g. h264_v4l2m2m). Those backends
+    are often unavailable, producing errors like "Could not find a valid device".
+    MJPG in AVI is broadly available and reliable for frame-by-frame writes.
+    We then transcode to a browser-friendly format with software ffmpeg.
     """
     stem = Path(video_path).stem
 
-    codec_attempts = [
-        (str(TEMP_DIR / f"{stem}_annotated.mp4"),    "mp4v"),
-        (str(TEMP_DIR / f"{stem}_annotated.avi"),     "XVID"),
-        (str(TEMP_DIR / f"{stem}_annotated_mjpg.avi"), "MJPG"),
-    ]
-
-    for path, codec in codec_attempts:
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        writer = cv2.VideoWriter(path, fourcc, fps, (width, height))
-        if writer.isOpened():
-            print(f"[video] Using codec {codec} -> {path}")
-            return writer, path
-        print(f"[video] Codec {codec} failed, trying next...")
-
-    raise RuntimeError("VideoWriter failed: no working codec found on this system")
+    output_path = str(TEMP_DIR / f"{stem}_annotated_raw.avi")
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    if not writer.isOpened():
+        raise RuntimeError("VideoWriter failed: MJPG codec unavailable on this system")
+    print(f"[video] Using codec MJPG -> {output_path}")
+    return writer, output_path
 
 
 def convert_to_mp4(source_path):
     """
-    If the raw output is not already .mp4, use ffmpeg (libx264) to produce a
-    browser-friendly mp4.  Returns the final path to serve.
+    Convert raw output into browser-playable format using software encoders.
+    We prefer H.264 mp4, then mpeg4 mp4, then webm.
     """
-    if source_path.endswith(".mp4"):
-        return source_path
-
-    mp4_path = source_path.rsplit(".", 1)[0] + ".mp4"
-
-    try:
-        result = subprocess.run(
+    base = source_path.rsplit(".", 1)[0]
+    transcode_attempts = [
+        (
+            f"{base}.mp4",
             [
-                "ffmpeg", "-y",
-                "-i", source_path,
+                "ffmpeg", "-y", "-i", source_path,
                 "-c:v", "libx264",
                 "-preset", "fast",
                 "-crf", "23",
                 "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart",
-                mp4_path,
             ],
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
+            "H.264 mp4",
+        ),
+        (
+            f"{base}_mpeg4.mp4",
+            [
+                "ffmpeg", "-y", "-i", source_path,
+                "-c:v", "mpeg4",
+                "-q:v", "5",
+                "-movflags", "+faststart",
+            ],
+            "MPEG-4 mp4",
+        ),
+        (
+            f"{base}.webm",
+            [
+                "ffmpeg", "-y", "-i", source_path,
+                "-c:v", "libvpx-vp9",
+                "-b:v", "2M",
+            ],
+            "VP9 webm",
+        ),
+    ]
 
-        if result.returncode == 0 and os.path.exists(mp4_path):
-            print(f"[video] ffmpeg converted -> {mp4_path}")
-            os.remove(source_path)          # clean up raw file
-            return mp4_path
-        else:
-            print(f"[video] ffmpeg failed (rc={result.returncode}): {result.stderr[:300]}")
+    try:
+        for output_path, base_cmd, label in transcode_attempts:
+            cmd = [*base_cmd, output_path]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+
+            if result.returncode == 0 and os.path.exists(output_path):
+                print(f"[video] ffmpeg converted ({label}) -> {output_path}")
+                try:
+                    os.remove(source_path)
+                except OSError:
+                    pass
+                return output_path
+
+            print(f"[video] ffmpeg {label} failed (rc={result.returncode}): {result.stderr[:300]}")
     except FileNotFoundError:
-        print("[video] ffmpeg not installed — serving raw file")
+        print("[video] ffmpeg not installed — serving raw file (may not play in browser)")
     except subprocess.TimeoutExpired:
-        print("[video] ffmpeg timed out — serving raw file")
+        print("[video] ffmpeg timed out — serving raw file (may not play in browser)")
 
-    return source_path                       # serve the avi as-is
+    return source_path
 
 
 # -----------------------------
@@ -466,6 +482,8 @@ def get_video(filename: str):
         return {"error": "File not found"}
     if filename.endswith(".avi"):
         return FileResponse(str(file_path), media_type="video/x-msvideo")
+    if filename.endswith(".webm"):
+        return FileResponse(str(file_path), media_type="video/webm")
     return FileResponse(str(file_path), media_type="video/mp4")
 
 
