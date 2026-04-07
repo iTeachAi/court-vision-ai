@@ -1,7 +1,14 @@
+# Web framework
 fastapi>=0.110
-uvicorn>=0.25
-opencv-python
-ultralytics
-python-multipart
-numpy
-pillow
+uvicorn[standard]>=0.25
+
+# File upload support — REQUIRED for FastAPI multipart/form-data
+python-multipart>=0.0.9
+
+# Computer vision & ML
+opencv-python-headless>=4.9   # headless: no GUI deps needed on server
+ultralytics>=8.0
+
+# Numerics & imaging
+numpy>=1.26
+pillow>=10.0

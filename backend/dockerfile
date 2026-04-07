@@ -1,55 +1,51 @@
-# -----------------------------
-# BASE IMAGE (FIX)
-# -----------------------------
-    FROM python:3.10-slim
+# ─────────────────────────────────────────────
+# Stage 1: dependency builder
+# ─────────────────────────────────────────────
+FROM python:3.11-slim AS builder
 
-    # Prevent Python from buffering logs
-    ENV PYTHONUNBUFFERED=1
-    
-    WORKDIR /app
-    
-    # -----------------------------
-    # SYSTEM DEPENDENCIES
-    # -----------------------------
-    RUN apt-get update && apt-get install -y \
-        libgl1 \
-        libglib2.0-0 \
-        ffmpeg \
-        build-essential \
-        && rm -rf /var/lib/apt/lists/*
-    
-    # -----------------------------
-    # INSTALL PYTHON DEPENDENCIES
-    # -----------------------------
-    COPY requirements.txt .
-    
-    RUN pip install --upgrade pip && \
-        pip install -r requirements.txt
-    
-    # -----------------------------
-    # COPY APP
-    # -----------------------------
-    COPY . .
-    
-    # OPTIONAL (only if not in requirements.txt)
-    RUN pip install \
-        fastapi \
-        uvicorn \
-        opencv-python \
-        ultralytics \
-        python-multipart
-    
-    # -----------------------------
-    # CREATE TEMP DIRECTORY
-    # -----------------------------
-    RUN mkdir -p /app/temp
-    
-    # -----------------------------
-    # EXPOSE PORT
-    # -----------------------------
-    EXPOSE 8000
-    
-    # -----------------------------
-    # START SERVER
-    # -----------------------------
-    CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /install
+
+COPY requirements.txt .
+
+# Install to an isolated prefix so we can copy cleanly
+RUN pip install --no-cache-dir --prefix=/install/deps -r requirements.txt
+
+
+# ─────────────────────────────────────────────
+# Stage 2: runtime image
+# ─────────────────────────────────────────────
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps:
+#   ffmpeg       — video re-encoding (libx264)
+#   libgl1       — OpenCV requirement
+#   libglib2.0-0 — OpenCV requirement (glib / gthread)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built Python packages from builder stage
+COPY --from=builder /install/deps /usr/local
+
+# Copy application code
+COPY app.py .
+
+# Copy model weights if they exist at build time (optional)
+# Remove these lines if you mount the weights as a volume instead
+COPY best.pt* ./
+
+# Create temp directory for video processing
+RUN mkdir -p /app/temp
+
+# Non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+# --workers 1: model is loaded once globally; multiple workers = multiple model copies in RAM
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
