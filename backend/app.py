@@ -19,8 +19,11 @@ logger = logging.getLogger(__name__)
 # -----------------------------
 # APP
 # -----------------------------
+BASE_URL = "https://api.courtiq.cfd"
+
 app = FastAPI(
     title="CourtIQ Analysis API",
+    root_path=BASE_URL,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -66,9 +69,9 @@ def get_model():
 # -----------------------------
 # HEALTH
 # -----------------------------
-@app.get("/")
+@app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "url": BASE_URL}
 
 
 # -----------------------------
@@ -371,7 +374,7 @@ def run_analysis(video_path: str, model) -> dict:
 
     return {
         "timeline":     timeline,
-        "video_url":    f"/video/{Path(output_path).name}",
+        "video_url":    f"{BASE_URL}/video/{Path(output_path).name}",
         "total_events": len(timeline),
         "duration":     round(frame_count / fps, 2),
     }
